@@ -13,11 +13,11 @@ TwoLayer <- function(t, y, parms){
   dTe <-  Q / Ve * Tin -
     Q / Ve * y[1] +
     ((vt(t) * At) / Ve) * (y[2] - y[1]) +
-    Jsw(t) / (rho * cp * Ht) * (10^4/0.2388) +
-    (sigma * (Tair(t) + 273)^4 * (Acoeff + 0.031 * sqrt((Acoeff * (4.596 * exp((17.27 * Dew(t)) / (237.3 + Dew(t))))))) * (1 - Rl)) / (rho * cp * Ht) -
-    (eps * sigma * (y[1] + 273)^4) /(rho * cp * Ht) -
-    (c1 * Uw(t) * (y[1] - Tair(t))) / (rho * cp * Ht) -
-    (Uw(t) * ((4.596 * exp((17.27 * y[1]) / (237.3 + y[1]))) - (Acoeff * (4.596 * exp((17.27 * Dew(t)) / (237.3 + Dew(t))))))) / (rho * cp * Ht)
+    Jsw(t) / (rho * cp * H) * (10^4/0.2388) +
+    (sigma * (Tair(t) + 273)^4 * (Acoeff + 0.031 * sqrt((Acoeff * (4.596 * exp((17.27 * Dew(t)) / (237.3 + Dew(t))))))) * (1 - Rl)) / (rho * cp * H) -
+    (eps * sigma * (y[1] + 273)^4) /(rho * cp * H) -
+    (c1 * Uw(t) * (y[1] - Tair(t))) / (rho * cp * H) -
+    (Uw(t) * ((4.596 * exp((17.27 * y[1]) / (237.3 + y[1]))) - (Acoeff * (4.596 * exp((17.27 * Dew(t)) / (237.3 + Dew(t))))))) / (rho * cp * H)
   
   dTh <-  (vt(t) * At) / (Vh) * (y[1] - y[2])
   
@@ -25,11 +25,11 @@ TwoLayer <- function(t, y, parms){
   qout <- - Q / Ve * y[1] 
   mix_e <- ((vt(t) * At) / Ve) * (y[2] - y[1]) 
   mix_h <- (vt(t) * At) / (Vh) * (y[1] - y[2])
-  sw <- Jsw(t) / (rho * cp * Ht) * (10^4/0.2388) 
-  lw <- (sigma * (Tair(t) + 273)^4 * (Acoeff + 0.031 * sqrt((Acoeff * (4.596 * exp((17.27 * Dew(t)) / (237.3 + Dew(t))))))) * (1 - Rl)) / (rho * cp * Ht)
-  water_lw <- - (eps * sigma * (y[1] + 273)^4) /(rho * cp * Ht)
-  conv <- - (c1 * Uw(t) * (y[1] - Tair(t))) / (rho * cp * Ht)
-  evap <- - (Uw(t) * ((4.596 * exp((17.27 * y[1]) / (237.3 + y[1]))) - (Acoeff * (4.596 * exp((17.27 * Dew(t)) / (237.3 + Dew(t))))))) / (rho * cp * Ht)
+  sw <- Jsw(t) / (rho * cp * H) * (10^4/0.2388) 
+  lw <- (sigma * (Tair(t) + 273)^4 * (Acoeff + 0.031 * sqrt((Acoeff * (4.596 * exp((17.27 * Dew(t)) / (237.3 + Dew(t))))))) * (1 - Rl)) / (rho * cp * H)
+  water_lw <- - (eps * sigma * (y[1] + 273)^4) /(rho * cp * H)
+  conv <- - (c1 * Uw(t) * (y[1] - Tair(t))) / (rho * cp * H)
+  evap <- - (Uw(t) * ((4.596 * exp((17.27 * y[1]) / (237.3 + y[1]))) - (Acoeff * (4.596 * exp((17.27 * Dew(t)) / (237.3 + Dew(t))))))) / (rho * cp * H)
   
   write.table(matrix(c(qin, qout, mix_e, mix_h, sw, lw, water_lw, conv, evap), nrow=1), 'output.txt', append = TRUE,
               quote = FALSE, row.names = FALSE, col.names = FALSE)
@@ -130,5 +130,10 @@ g2 <- ggplot(output) +
   labs(x = 'Simulated Time', y = 'Flux in deg C/d')
 
 #pdf('Simulation.pdf')
-grid.arrange(g1, g2, ncol =2)
+grid.arrange(g1, g2, ncol =1)
+#dev.off()
+
+#pdf('Simulation.pdf')
+g3 <- grid.arrange(g1, g2, ncol =1)
+ggsave(file='visual_result.png', g3, dpi = 300,width = 200,height = 180, units = 'mm')
 #dev.off()
