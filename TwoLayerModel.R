@@ -10,10 +10,13 @@ if (file.exists('output.txt'))
   #Delete file if it exists
   file.remove('output.txt')
 
+heat.fluxes <-c()
+
 TwoLayer <- function(t, y, parms){
   eair <- (4.596 * exp((17.27 * Dew(t)) / (237.3 + Dew(t)))) # air vapor pressure
   esat <- 4.596 * exp((17.27 * Tair(t)) / (237.3 + Tair(t))) # saturation vapor pressure
   RH <- eair/esat *100 # relative humidity
+  es <- 4.596 * exp((17.27 * y[1])/ (273.3+y[1]))
   # epilimnion water temperature change per time unit
   dTe <-  Q / Ve * Tin -              # inflow heat
     Q / Ve * y[1] +                   # outflow heat
@@ -23,7 +26,7 @@ TwoLayer <- function(t, y, parms){
     (sigma * (Tair(t) + 273)^4 * (Acoeff + 0.031 * sqrt(eair)) * (1 - Rl)) - # longwave radiation into the lake
     (eps * sigma * (y[1] + 273)^4)  - # backscattering longwave radiation from the lake
     (c1 * Uw(t) * (y[1] - Tair(t))) - # convection
-    (Uw(t) * ((esat) - (eair))) )# evaporation
+    (Uw(t) * ((es) - (eair))) )# evaporation
   
   # hypolimnion water temperature change per time unit
   dTh <-  ((vt(t) * At) / Vh) * (y[1] - y[2]) 
@@ -40,7 +43,7 @@ TwoLayer <- function(t, y, parms){
   evap <- - (Uw(t) * ((esat) - (eair))) #*As #*As/(Ve * rho * cp)
   Rh <- RH
   
-  write.table(matrix(c(qin, qout, mix_e, mix_h, sw, lw, water_lw, conv, evap, Rh), nrow=1), 'output.txt', append = TRUE,
+  write.table(matrix(c(qin, qout, mix_e, mix_h, sw, lw, water_lw, conv, evap, Rh,t), nrow=1), 'output.txt', append = TRUE,
               quote = FALSE, row.names = FALSE, col.names = FALSE)
 
   return(list(c(dTe, dTh)))
@@ -71,15 +74,19 @@ c1 <- 0.47 # Bowen's coefficient
 parameters <- c(Ve, Vh, At, Ht, As, Tin, Q, Rl, Acoeff, sigma, eps, rho, cp, c1)
 
 Et <- 7.07 * 10^(-4)  * ((Ve+Vh)/As/100)^(1.1505) # vertifcal diffusion coefficient (cm2 per d)
-vto <- Et/(Ht/100) * (86400/10000) *100 # heat change coefficient across thermocline during stratified season
-vt_mix <- 500 # high heat change coefficient during overturn and mixing events
+vto <- Et/(Ht/100) * (86400/10000) #*100 # heat change coefficient across thermocline during stratified season
+vt_mix <- 100 # high heat change coefficient during overturn and mixing events
 bound <- as.data.frame(cbind(bound, c(rep(vt_mix,3),rep(vto,6),rep(vt_mix,3))))
 
 colnames(bound) <- c('Month','Jsw','Tair','Dew','Uw','vt')
 bound$Uw <- 19.0 + 0.95 * (bound$Uw * 1000/3600)^2 # function to calculate wind shear stress (and transforming wind speed from km/h to m/s)
 
-boundary <- bound
-boundary$Month <- seq(1, nrow(boundary),1)
+bound$vt <- bound$vt + 100
+
+# boundary <- bound
+# boundary$Month <- seq(1, nrow(boundary),1)
+boundary <- rbind(bound[1,],bound)
+boundary$Month <- cumsum(c(1,31,28,31,30,31,30,31,31,30,31,30,31))
 
 # approximating all boundary conditions 
 Jsw <- approxfun(x = boundary$Month, y = boundary$Jsw, method = "linear", rule = 2)
@@ -88,7 +95,8 @@ Dew <- approxfun(x = boundary$Month, y = boundary$Dew, method = "linear", rule =
 Uw <- approxfun(x = boundary$Month, y = boundary$Uw, method = "linear", rule = 2)
 vt <- approxfun(x = boundary$Month, y = boundary$vt, method = "linear", rule = 2)
 
-times <- seq(from = 1, to = nrow(boundary), by = 1/30)
+#times <- seq(from = 1, to = nrow(boundary), by = 1/30)
+times <- seq(from = 1, to = max(boundary$Month), by = 1)
 yini <- c(5,5) # initial water temperatures
 
 # runge-kutta 4th order
@@ -100,32 +108,34 @@ lines(out[,1], out[,3], col = 'blue')
 result <- data.frame('Time' = out[,1],
                      'WT_epi' = out[,2], 'WT_hyp' = out[,3])
 g1 <- ggplot(result) +
-  geom_line(aes(x=Time, y=WT_epi, col='Epilimnion')) +
-  geom_line(aes(x=(Time), y=WT_hyp, col='Hypolimnion')) +
+  geom_line(aes(x=Time, y=WT_epi, col='Surface Mixed Layer')) +
+  geom_line(aes(x=(Time), y=WT_hyp, col='Bottom Layer')) +
   labs(x = 'Simulated Time', y = 'WT in deg C')  +
-  theme_bw()
+  theme_bw()+
+  theme(legend.position="bottom")
 
 output <- read.table('output.txt')
 # qin, qout, mix_e, mix_h, sw, lw, water_lw, conv, evap
 output <- data.frame('qin'=output[,1],'qout'=output[,2],'mix_e'=output[,3],'mix_h'=output[,4],
                      'sw'=output[,5],'lw'=output[,6],'water_lw'=output[,7],'conv'=output[,8],
-                     'evap'=output[,9], 'Rh' = output[,10])
-output$balance <- apply(output[,-10],1, sum)
+                     'evap'=output[,9], 'Rh' = output[,10],'time' = output[,11])
+output$balance <- apply(output[,-c(10,11)],1, sum)
 
 g2 <- ggplot(output) +
-  geom_line(aes(x = seq(from = 1, to = nrow(output), by = 1),y = qin, col = 'Inflow')) +
-  geom_line(aes(x = seq(from = 1, to = nrow(output), by = 1),y = qout, col = 'Outflow')) +
-  geom_line(aes(x = seq(from = 1, to = nrow(output), by = 1),y = mix_e, col = 'Mixing into Epilimnion')) +
-  geom_line(aes(x = seq(from = 1, to = nrow(output), by = 1),y = mix_h, col = 'Mixing into Hypolimnion')) +
-  geom_line(aes(x = seq(from = 1, to = nrow(output), by = 1),y = sw, col = 'Shortwave')) +
-  geom_line(aes(x = seq(from = 1, to = nrow(output), by = 1),y = lw, col = 'Longwave')) +
-  geom_line(aes(x = seq(from = 1, to = nrow(output), by = 1),y = water_lw, col = 'Reflection')) +
-  geom_line(aes(x = seq(from = 1, to = nrow(output), by = 1),y = conv, col = 'Conduction')) +
-  geom_line(aes(x = seq(from = 1, to = nrow(output), by = 1),y = evap, col = 'Evaporation')) +
-  geom_line(aes(x = seq(from = 1, to = nrow(output), by = 1),y = balance, col = 'Sum'), linetype = "dashed") +
+  geom_line(aes(x = time,y = qin, col = 'Inflow')) +
+  geom_line(aes(x = time,y = qout, col = 'Outflow')) +
+  geom_line(aes(x = time,y = mix_e, col = 'Mixing into Epilimnion')) +
+  geom_line(aes(x = time,y = mix_h, col = 'Mixing into Hypolimnion')) +
+  geom_line(aes(x = time,y = sw, col = 'Shortwave')) +
+  geom_line(aes(x = time,y = lw, col = 'Longwave')) +
+  geom_line(aes(x = time,y = water_lw, col = 'Reflection')) +
+  geom_line(aes(x = time,y = conv, col = 'Conduction')) +
+  geom_line(aes(x = time,y = evap, col = 'Evaporation')) +
+  geom_line(aes(x = time,y = balance, col = 'Sum'), linetype = "dashed") +
   scale_colour_brewer("Energy terms", palette="Set3") +
   labs(x = 'Simulated Time', y = 'Fluxes in cal/(cm2 d)')  +
-  theme_bw()
+  theme_bw()+
+  theme(legend.position="bottom")
 
 #pdf('Simulation.pdf')
 grid.arrange(g1, g2, ncol =1)
@@ -133,5 +143,5 @@ grid.arrange(g1, g2, ncol =1)
 
 #pdf('Simulation.pdf')
 g3 <- grid.arrange(g1, g2, ncol =1)
-ggsave(file='2L_visual_result.png', g3, dpi = 300,width = 200,height = 180, units = 'mm')
+ggsave(file='2L_visual_result.png', g3, dpi = 300,width = 200,height = 220, units = 'mm')
 #dev.off()

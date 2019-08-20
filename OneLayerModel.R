@@ -69,8 +69,10 @@ bound <- as.data.frame(bound)
 bound$Uw <- 19.0 + 0.95 * (bound$Uw * 1000/3600)^2
 
 #boundary <- rbind(bound,bound,bound)
-boundary <- bound
-boundary$Month <- seq(1, nrow(boundary),1)
+boundary <- rbind(bound[1,],bound)
+
+#boundary$Month <- seq(1, nrow(boundary),1)
+boundary$Month <- cumsum(c(1,31,28,31,30,31,30,31,31,30,31,30,31))
 #boundary$Jsw <- boundary$Jsw * 100
 
 Jsw <- approxfun(x = boundary$Month, y = boundary$Jsw, method = "linear", rule = 2)
@@ -79,8 +81,9 @@ Dew <- approxfun(x = boundary$Month, y = boundary$Dew, method = "linear", rule =
 Uw <- approxfun(x = boundary$Month, y = boundary$Uw, method = "linear", rule = 2)
 
 
-times <- seq(from = 1, to = nrow(boundary), by = 1/30)
-yini <- c(y = 8)
+#times <- seq(from = 1, to = nrow(boundary), by = 1/30)
+times <- seq(from = 1, to = max(boundary$Month), by = 1)
+yini <- c(y = 5)
 
 out <- ode(times = times, y = yini, func = OneLayer, parms = parameters, method = 'rk4')
 diagnostics(out)
